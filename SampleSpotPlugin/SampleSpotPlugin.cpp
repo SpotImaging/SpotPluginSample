@@ -151,7 +151,7 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
     host_event_t eventToMonitor = HostEvent::Idle;
     singleEventBinding.EventHandler = OnHostIdle;
     singleEventBinding.EventSourceListLength = 1;
-    singleEventBinding.HostEventSourceList = eventsToMonitor;
+    singleEventBinding.HostEventSourceList = &eventToMonitor;
     PluginHost::ActionFunc(PluginHost::pluginHandle, HostActionRequest::BindEventHandler, 0, &singleEventBinding);
 #else 
     // -- Object Model Example--

@@ -18,7 +18,7 @@
 #include <sstream>
 #include <vector>
 #include "CppMacroTools.h"
-#include <SpotPlugin.h>
+#include "SpotPlugin.h"
 
 
 

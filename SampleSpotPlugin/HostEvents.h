@@ -2,7 +2,7 @@
 #include <string>
 #include <stdexcept>
 #include <memory>
-#include <SpotPlugin.h>
+#include "SpotPlugin.h"
 #include "PluginHost.h"
 #include "EventSourceTypes.h"
 #include "EventArgConverters.h"

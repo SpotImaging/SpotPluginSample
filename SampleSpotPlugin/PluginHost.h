@@ -1,6 +1,6 @@
 #pragma once
 
-#include <SpotPlugin.h>
+#include "SpotPlugin.h"
 
 namespace PluginHost
 {

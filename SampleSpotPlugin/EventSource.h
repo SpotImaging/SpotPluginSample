@@ -1,5 +1,5 @@
 #pragma once
-#include <SpotPlugin.h>
+#include "SpotPlugin.h"
 #include "PluginHost.h"
 #include "MulticastEventDelegate.h"
 #include <functional>

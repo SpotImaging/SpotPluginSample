@@ -4,7 +4,7 @@
 #include <map>
 #include <type_traits>
 #include <cassert>
-#include <SpotPlugin.h>
+#include "SpotPlugin.h"
 #include "PluginHost.h"
 #include "Utilities.h"
 
