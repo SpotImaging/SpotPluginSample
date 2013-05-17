@@ -63,6 +63,7 @@ void SPOTPLUGINAPI DispatchEvent(host_event_t hostEvent, uintptr_t args, uintptr
     }
 }
 
+CallbackDispatcher dispatcher;
 
 void OnUnloadingPlugin()
 {
@@ -71,7 +72,7 @@ void OnUnloadingPlugin()
 
 /// Summary:
 ///     This is the function that is registered with the host application to receive callbacks
-void SPOTPLUGINAPI CallbackDispatcher(callback_reason_t reason, uintptr_t info, uintptr_t userData)
+void SPOTPLUGINAPI DispatchCallback(callback_reason_t reason, uintptr_t info, uintptr_t userData)
 {
     switch (reason)
     {
@@ -103,6 +104,14 @@ void SetStandardEventHandlers()
    add_logger_to_event( HostInterop::HostEvents::ImageDocChanged(), "Image document changed");
 }
 
+struct test_action_t
+{
+	void MakeSomeNoise()
+	{
+		MessageBeep(300);
+	}
+};
+
 /// Summary:
 ///   Main export function that must be implemented by a plug-in.
 ///   This method will be called by the host application upon loading the library.
@@ -131,7 +140,7 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
 
 #ifdef USE_SIMPLE_FUNCTION_BASED_EXAMPLE
     // Set the callback function to handle requests from the host.
-    *pluginCallbackFunc = CallbackDispatcher;
+    *pluginCallbackFunc = DispatchCallback;
     *userData = 0;
     // --------------------------------------
     // Set up optional event bindings needed
@@ -160,11 +169,16 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
     // Setup callback handler
     //
     // This callback handles all 
-    *pluginCallbackFunc = CallbackDispatcher;
-    *userData = 0;
+	*pluginCallbackFunc = CallbackDispatcher::master_callback_func;
+	*userData = reinterpret_cast<uintptr_t>(&dispatcher);
+	dispatcher.SetAction(1, []()
+	{
+		auto measurmentFontSize = VariableManager::StandardVars().GetByName<NumericVariable>("MeasurementTextFontSize");
+		if(measurmentFontSize)
+			measurmentFontSize->Value(measurmentFontSize->Value() + 1);
+	});
 
-
-    //===============================
+	//===============================
     // Setup optional event bindings
     //
     // Construct an EventSource<T> object by supplying an argument conversion function object

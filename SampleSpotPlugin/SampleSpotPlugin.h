@@ -8,6 +8,7 @@
 #include "EventArgConverters.h"
 #include "EventSourceTypes.h"
 #include "HostEvents.h"
+#include "CallbackDispatcher.h"
 
 void DoActionCode(int code);
 void OnIdleEvent();

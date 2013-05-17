@@ -89,6 +89,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CallbackDispatcher.h" />
     <ClInclude Include="CppMacroTools.h" />
     <ClInclude Include="SpotPlugin.h" />
     <ClInclude Include="EventArgConverters.h" />

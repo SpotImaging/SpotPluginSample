@@ -659,7 +659,7 @@ namespace internal // implementation specific namespace not for general usage
 
             if (stdVars.Size() == 0)
             {
-                for(auto item : internal::std_vars_build_script)
+                for(auto &item : internal::std_vars_build_script)
                 {
                     try
                     {
