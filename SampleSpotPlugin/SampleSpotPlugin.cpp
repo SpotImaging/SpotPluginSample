@@ -99,18 +99,10 @@ struct DummyFunc : public EventDelegate<read_string_event_t::arg_type>
 
 void SetStandardEventHandlers()
 {
-   add_logger_to_event( HostInterop::HostEvents::ApplicationClosing(), "Application closing");
-   add_logger_to_event( HostInterop::HostEvents::CameraInit(), "Camera initialized");
-   add_logger_to_event( HostInterop::HostEvents::ImageDocChanged(), "Image document changed");
+    add_logger_to_event( HostInterop::HostEvents::ApplicationClosing(), "Application closing");
+    add_logger_to_event( HostInterop::HostEvents::CameraInit(), "Camera initialized");
+    add_logger_to_event( HostInterop::HostEvents::ImageDocChanged(), "Image document changed");
 }
-
-struct test_action_t
-{
-    void MakeSomeNoise()
-    {
-        MessageBeep(300);
-    }
-};
 
 /// Summary:
 ///   Main export function that must be implemented by a plug-in.
@@ -154,7 +146,7 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
     // set the pointer to the first element in the array
     multiEventBinding.HostEventSourceList = eventsToMonitor;
     PluginHost::ActionFunc(PluginHost::pluginHandle, HostActionRequest::BindEventHandler, 0, &multiEventBinding);
-    
+
     // Obviously binding one event to a function is also supported by setting it individually
     msg_event_handler_binding_t singleEventBinding;
     host_event_t eventToMonitor = HostEvent::Idle;
@@ -164,18 +156,29 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
     PluginHost::ActionFunc(PluginHost::pluginHandle, HostActionRequest::BindEventHandler, 0, &singleEventBinding);
 #else 
     // -- Object Model Example--
-    
+
     //===============================
     // Setup callback handler
     //
-    // This callback handles all 
+    // This callback handles all callback requests
     *pluginCallbackFunc = CallbackDispatcher::master_callback_func;
     *userData = reinterpret_cast<uintptr_t>(&dispatcher);
+    
+    // assign actions to the associated action id.
     dispatcher.SetAction(1, []()
     {
         auto measurmentFontSize = VariableManager::StandardVars().GetByName<NumericVariable>("MeasurementTextFontSize");
         if(measurmentFontSize)
             measurmentFontSize->Value(measurmentFontSize->Value() + 1);
+    });
+
+    dispatcher.SetAction(10, []()
+    {
+        auto argT1 = VariableManager::StandardVars().GetByName<TextVariable>("_argT1");
+        auto argT2 = VariableManager::StandardVars().GetByName<TextVariable>("_argT2");
+        auto argT3 = VariableManager::StandardVars().GetByName<TextVariable>("_argT3");
+        auto argN1 = VariableManager::StandardVars().GetByName<NumericVariable>("_argN1");
+        argT3->Value(argT1->Value() + argT2->Value() + argN1->ToString());
     });
 
     //===============================
@@ -196,12 +199,13 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
     // };
     // cameraEventSource->AddDelegate(make_event_delegate(testcode));
     // cameraEventSource->AddDelegate(make_shared<DummyFunc>());
-    // SetStandardEventHandlers();
-    
+
+    SetStandardEventHandlers();
+
     std::function<void(HostEvents::application_closing_t::arg_type)> backupOnExit = [] (HostEvents::application_closing_t::arg_type)
     {
         string path = VariableManager::StandardVars().GetByName<TextVariable>("PrefsFilePath")->Value();
-        VariableManager::StandardVars().SaveAll(path + "BackupVars");
+        VariableManager::StandardVars().SaveAll(path + "\\BackupVars");
     };
     HostEvents::ApplicationClosing().AddDelegate(make_event_delegate(backupOnExit));
 
