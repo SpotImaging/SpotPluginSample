@@ -17,7 +17,7 @@ void DoActionCode(uintptr_t code)
         setVariableMessage.DataType = msg_get_set_variable_t::Text;
         setVariableMessage.VariableName = "TextVar1";
         setVariableMessage.TextValue = make_text_variable("Hello world. from SPOT sample plug-in");
-        PluginHost::ActionFunc(PluginHost::pluginHandle, HostActionRequest::SetVariable, 0, &setVariableMessage);
+        PluginHost::DoAction(HostActionRequest::SetVariable, 0, &setVariableMessage);
         break;
     default:
         OutputDebugString(_T("Unknown action code sent to plug-in\n"));
@@ -34,7 +34,7 @@ void SPOTPLUGINAPI OnHostIdle(host_event_t hostEvent, uintptr_t args, uintptr_t 
         msg_event_handler_binding_t eventBinding;
         eventBinding.EventSourceListLength = 1;
         eventBinding.HostEventSourceList = &hostEvent;
-        PluginHost::ActionFunc(PluginHost::pluginHandle, HostActionRequest::UnbindEventHandler, 0, &eventBinding);
+        PluginHost::DoAction(HostActionRequest::UnbindEventHandler, 0, &eventBinding);
     }
     OutputDebugString(_T("OnHostIdle\n"));
 }
@@ -145,7 +145,7 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
     multiEventBinding.EventSourceListLength = std::distance(std::begin(eventsToMonitor), std::end(eventsToMonitor)); 
     // set the pointer to the first element in the array
     multiEventBinding.HostEventSourceList = eventsToMonitor;
-    PluginHost::ActionFunc(PluginHost::pluginHandle, HostActionRequest::BindEventHandler, 0, &multiEventBinding);
+    PluginHost::DoAction(HostActionRequest::BindEventHandler, 0, &multiEventBinding);
 
     // Obviously binding one event to a function is also supported by setting it individually
     msg_event_handler_binding_t singleEventBinding;
@@ -153,7 +153,7 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
     singleEventBinding.EventHandler = OnHostIdle;
     singleEventBinding.EventSourceListLength = 1;
     singleEventBinding.HostEventSourceList = &eventToMonitor;
-    PluginHost::ActionFunc(PluginHost::pluginHandle, HostActionRequest::BindEventHandler, 0, &singleEventBinding);
+    PluginHost::DoAction(HostActionRequest::BindEventHandler, 0, &singleEventBinding);
 #else 
     // -- Object Model Example--
 
@@ -167,18 +167,17 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
     // assign actions to the associated action id.
     dispatcher.SetAction(1, []()
     {
-        auto measurmentFontSize = VariableManager::StandardVars().GetByName<NumericVariable>("MeasurementTextFontSize");
-        if(measurmentFontSize)
-            measurmentFontSize->Value(measurmentFontSize->Value() + 1);
+        if(!GetBoolVariable("LiveImgRunning"))
+            PluginHost::DoAction(HostActionRequest::StartLive, 0, nullptr);
     });
 
     dispatcher.SetAction(10, []()
     {
-        auto argT1 = VariableManager::StandardVars().GetByName<TextVariable>("_argT1");
-        auto argT2 = VariableManager::StandardVars().GetByName<TextVariable>("_argT2");
-        auto argT3 = VariableManager::StandardVars().GetByName<TextVariable>("_argT3");
-        auto argN1 = VariableManager::StandardVars().GetByName<NumericVariable>("_argN1");
-        argT3->Value(argT1->Value() + argT2->Value() + argN1->ToString());
+        auto stdVars = VariableManager::StandardVars();
+        auto argT1 = stdVars.GetByName<TextVariable>("_argT1");
+        auto argT2 = stdVars.GetByName<TextVariable>("_argT2");
+        auto argN1 = stdVars.GetByName<IntegerVariable>("LiveImgCount");
+        stdVars.SetValue("_argT3", argT1.Value() + argT2.Value() + argN1.ToString());
     });
 
     //===============================
@@ -204,7 +203,7 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
 
     std::function<void(HostEvents::application_closing_t::arg_type)> backupOnExit = [] (HostEvents::application_closing_t::arg_type)
     {
-        string path = VariableManager::StandardVars().GetByName<TextVariable>("PrefsFilePath")->Value();
+        string path = VariableManager::StandardVars().GetByName<TextVariable>("PrefsFilePath").Value();
         VariableManager::StandardVars().SaveAll(path + "\\BackupVars");
     };
     HostEvents::ApplicationClosing().AddDelegate(make_event_delegate(backupOnExit));

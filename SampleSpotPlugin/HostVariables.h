@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <stdexcept>
+#include <unordered_map>
 #include <map>
 #include <type_traits>
 #include <cassert>
@@ -41,9 +42,6 @@ namespace HostInterop
 
 namespace internal // implementation specific namespace not for general usage
 {
-    
-
-
     template<size_t MaxReadLength>
     static inline std::string _GetTextVariable(const char* name)
     {
@@ -53,7 +51,7 @@ namespace internal // implementation specific namespace not for general usage
         getVarMsg.DataType = SpotPluginApi::msg_get_set_variable_t::Text;
         getVarMsg.VariableName = name;
         getVarMsg.TextValue = SpotPluginApi::make_text_variable(szTextBuffer, MaxReadLength);
-        if (!PluginHost::ActionFunc(PluginHost::pluginHandle, SpotPluginApi::HostActionRequest::GetVariable, 0, &getVarMsg))
+        if (!PluginHost::DoAction( SpotPluginApi::HostActionRequest::GetVariable, 0, &getVarMsg))
             throw std::runtime_error(std::string("Error getting text macro variable named ") + name);
         getVarMsg.TextValue.UpdateLength();
         return std::string(getVarMsg.TextValue.c_str());
@@ -77,7 +75,7 @@ namespace internal // implementation specific namespace not for general usage
         setVarMsg.DataType = SpotPluginApi::msg_get_set_variable_t::Text;
         setVarMsg.VariableName = name;
         setVarMsg.TextValue = SpotPluginApi::make_text_variable(value);
-        if (!PluginHost::ActionFunc(PluginHost::pluginHandle, SpotPluginApi::HostActionRequest::SetVariable, 0, &setVarMsg))
+        if (!PluginHost::DoAction( SpotPluginApi::HostActionRequest::SetVariable, 0, &setVarMsg))
             throw std::runtime_error(std::string("Error setting text macro variable named ") + name);
     }
 
@@ -124,7 +122,7 @@ namespace internal // implementation specific namespace not for general usage
         setVarMsg.DataType = SpotPluginApi::msg_get_set_variable_t::Numeric;
         setVarMsg.VariableName = name;
         setVarMsg.NumericValue = value;
-        if (!PluginHost::ActionFunc(PluginHost::pluginHandle, SpotPluginApi::HostActionRequest::SetVariable, 0, &setVarMsg))
+        if (!PluginHost::DoAction( SpotPluginApi::HostActionRequest::SetVariable, 0, &setVarMsg))
             throw std::runtime_error(std::string("Error setting numeric macro variable named ") + name);
     }
     
@@ -141,7 +139,7 @@ namespace internal // implementation specific namespace not for general usage
         SpotPluginApi::msg_get_set_variable_t getVarMsg;
         getVarMsg.DataType = SpotPluginApi::msg_get_set_variable_t::Numeric;
         getVarMsg.VariableName = name;
-        if (!PluginHost::ActionFunc(PluginHost::pluginHandle, SpotPluginApi::HostActionRequest::GetVariable, 0, &getVarMsg))
+        if (!PluginHost::DoAction( SpotPluginApi::HostActionRequest::GetVariable, 0, &getVarMsg))
             throw std::runtime_error(std::string("Error getting numeric macro variable named ") + name);
         return getVarMsg.NumericValue;
     }
@@ -161,7 +159,7 @@ namespace internal // implementation specific namespace not for general usage
         setVarMsg.DataType = SpotPluginApi::msg_get_set_variable_t::Bool;
         setVarMsg.VariableName = name;
         setVarMsg.BoolValue = value;
-        if (!PluginHost::ActionFunc(PluginHost::pluginHandle, SpotPluginApi::HostActionRequest::SetVariable, 0, &setVarMsg))
+        if (!PluginHost::DoAction( SpotPluginApi::HostActionRequest::SetVariable, 0, &setVarMsg))
             throw std::runtime_error(std::string("Error setting Boolean macro variable named ") + name);
     }
     
@@ -178,7 +176,7 @@ namespace internal // implementation specific namespace not for general usage
         SpotPluginApi::msg_get_set_variable_t getVarMsg;
         getVarMsg.DataType = SpotPluginApi::msg_get_set_variable_t::Bool;
         getVarMsg.VariableName = name;
-        if (!PluginHost::ActionFunc(PluginHost::pluginHandle, SpotPluginApi::HostActionRequest::GetVariable, 0, &getVarMsg))
+        if (!PluginHost::DoAction( SpotPluginApi::HostActionRequest::GetVariable, 0, &getVarMsg))
             throw std::runtime_error(std::string("Error getting Boolean macro variable named ") + name);
         return getVarMsg.BoolValue != 0;
     }
@@ -189,7 +187,7 @@ namespace internal // implementation specific namespace not for general usage
         SpotPluginApi::msg_save_recall_variable_t saveMsg;
         saveMsg.FilePath = fileName;
         saveMsg.VariableName = name;
-        if (!PluginHost::ActionFunc(PluginHost::pluginHandle, SpotPluginApi::HostActionRequest::SaveVariable, 0, &saveMsg))
+        if (!PluginHost::DoAction( SpotPluginApi::HostActionRequest::SaveVariable, 0, &saveMsg))
             throw std::runtime_error(std::string("Error saving variable (").append(name).append(") to the file ").append(fileName));
     }
 
@@ -198,7 +196,7 @@ namespace internal // implementation specific namespace not for general usage
         SpotPluginApi::msg_save_recall_variable_t restoreMsg;
         restoreMsg.FilePath = fileName;
         restoreMsg.VariableName = name;
-        if (!PluginHost::ActionFunc(PluginHost::pluginHandle, SpotPluginApi::HostActionRequest::RecallVariable, 0, &restoreMsg))
+        if (!PluginHost::DoAction( SpotPluginApi::HostActionRequest::RecallVariable, 0, &restoreMsg))
             throw std::runtime_error(std::string("Error reading variable (").append(name).append(") from file ").append(fileName));
     }
     
@@ -219,146 +217,158 @@ namespace internal // implementation specific namespace not for general usage
     public:
         virtual ~IVariable() {};
         const std::string& Name() const { return name; }
-        const std::string& ObjectId() const
-        {
-            if (!objectId)
-                throw std::logic_error("null reference");
-            return *objectId;
-        }
+        const std::shared_ptr<std::string> ObjectId() const { return objectId; }
         VariableType Type() const { return type;}
         ScopeFlags Scope() const { return scope; }
         bool IsReadOnly() const { return readOnly; }
         bool IsGlobal() const { return nullptr == objectId; }
-        virtual void Update() = 0;
         virtual std::string ToString() { return std::string(name).append(", type:").append(std::to_string((int)type)).append(", {undefined value}"); }
     };
     
+    template<typename T>
+    class Variable : public IVariable
+    {
+    public:
+        Variable(std::string name, std::shared_ptr<std::string> objectId, VariableType type, ScopeFlags scope, bool readOnly) :
+            IVariable(name, objectId, type, scope, readOnly)
+        {}
+        virtual ~Variable() {}
+        virtual T Value() const = 0;
+        virtual Variable& Value(const T& value) = 0;
+    };
+
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     /// Summary:
     ///
-    class BoolVariable : public IVariable
+    class BoolVariable : public Variable<bool>
     {
-    protected:
-        bool value;
-
     public:
         BoolVariable(const char* name, ScopeFlags scope = ScopeFlags::Unknown, bool isReadOnly=false) :
-            IVariable(name, nullptr, VariableType::Text, scope, isReadOnly)
-        {
-            Update();
-        }
+            Variable<bool>(name, nullptr, VariableType::Text, scope, isReadOnly)
+        {   }
 
-        virtual void Update()
-        {
-            value = GetBoolVariable(Name().c_str());
-        }
-        
-        virtual bool Value() const { return value;}
+        virtual bool Value() const { return GetBoolVariable(name.c_str()); }
 
-        virtual void Value(bool newValue)
+        virtual Variable<bool>& Value(const bool& newValue)
         {
             if (IsReadOnly())
                 throw std::runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
-            SetBoolVariable(Name().c_str(), newValue);
-            value = newValue;
+            SetBoolVariable(name.c_str(), newValue);
+            return *this;
         }
 
-        virtual std::string ToString() { return value ? "true" : "false"; }
+        virtual std::string ToString() { return Value() ? "true" : "false"; }
     };
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     /// Summary:
     ///
-    class TextVariable : public IVariable
+    class TextVariable : public Variable<std::string>
     {
-    protected:
-        std::string value;
-
     public:
         TextVariable(const char* name, ScopeFlags scope = ScopeFlags::Unknown, bool isReadOnly=false) :
-            IVariable(name, nullptr, VariableType::Text, scope, isReadOnly)
-        {
-            Update();
-        }
+            Variable<std::string>(name, nullptr, VariableType::Text, scope, isReadOnly)
+        {  }
 
-        virtual void Update()
-        {
-            value = GetTextVariable(Name().c_str());
-        }
-        
-        virtual const std::string& Value() const { return value;}
+        virtual std::string Value() const { return GetTextVariable(name.c_str()); }
 
-        virtual void Value(const std::string& newValue)
+        virtual Variable<std::string>& Value(const std::string& newValue)
         {
             if (IsReadOnly())
                 throw std::runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
-            SetTextVariable(Name().c_str(), newValue);
-            value = newValue;
+            SetTextVariable(name.c_str(), newValue);
+            return *this;
         }
 
-        virtual std::string ToString() { return value; }
+        virtual std::string ToString() { return Value(); }
     };
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     /// Summary:
     ///
-    class NumericVariable : public IVariable
+    class NumericVariable : public Variable<double>
     {
-    protected:
-        double value;
 
     public:
-        NumericVariable(const char* name, ScopeFlags scope = ScopeFlags::Unknown, bool isReadOnly = false, bool isInteger = false) :
-            IVariable(name, nullptr, isInteger? VariableType::Integer : VariableType::Numeric, scope, isReadOnly)
-        {
-            Update();
-        }
+        NumericVariable(const char* name, ScopeFlags scope = ScopeFlags::Unknown, bool isReadOnly = false) :
+            Variable(name, nullptr, VariableType::Numeric, scope, isReadOnly)
+        { }
 
-        virtual void Update()
-        {
-            value = GetNumericVariable(Name().c_str());
-        }
-        
-        virtual double Value() const { return value;}
+        virtual double Value() const { return GetNumericVariable(name.c_str());}
 
-        virtual void Value(int newValue)
+        virtual Variable<double>& Value(int newValue)
         {
-            using std::runtime_error;
-
             if (IsReadOnly())
-                throw runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
-            double realVal = newValue;
-            SetNumericVariable(Name().c_str(), realVal);
-            value = realVal;
+                throw std::runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
+            SetNumericVariable(name.c_str(), newValue);
+            return *this;
         }
 
-        virtual void Value(double newValue)
+        virtual Variable<double>& Value(const double& newValue)
         {
-            using std::runtime_error;
-
             if (IsReadOnly())
-                throw runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
-            if(type == VariableType::Integer)
-                newValue = round_to_nearest_awayzero(newValue);
-            SetNumericVariable(Name().c_str(), newValue);
-            value = newValue;
+                throw std::runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
+            SetNumericVariable(name.c_str(), newValue);
+            return *this;
         }
 
-        virtual void Value(const std::string& textToParse, int base = 10)
+        virtual Variable<double>& Value(const std::string& textToParse)
         {
-            using std::runtime_error;
-
             if (IsReadOnly())
-                throw runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
-            double newValue = VariableType::Integer == type ? static_cast<double>(std::stoi(textToParse, nullptr, base)) : std::stod(textToParse);
-            SetNumericVariable(Name().c_str(), newValue);
-            value = newValue;
+                throw std::runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
+            SetNumericVariable(name.c_str(), std::stod(textToParse));
+            return *this;
         }
 
         virtual std::string ToString()
         {
-            return type == VariableType::Integer ? std::to_string(static_cast<int>(value)) : std::to_string(value); 
+            return std::to_string(Value()); 
+        }
+    };
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /// Summary:
+    ///
+    class IntegerVariable : public Variable<int>
+    {
+
+    public:
+        IntegerVariable(const char* name, ScopeFlags scope = ScopeFlags::Unknown, bool isReadOnly = false) :
+            Variable(name, nullptr, VariableType::Integer, scope, isReadOnly)
+        { }
+
+        virtual int Value() const { return static_cast<int>(GetNumericVariable(name.c_str()));}
+
+        virtual Variable<int>& Value(const int& newValue)
+        {
+            if (IsReadOnly())
+                throw std::runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
+            double realVal = newValue;
+            SetNumericVariable(name.c_str(), realVal);
+            return *this;
+        }
+
+        virtual Variable<int>& Value(double newValue)
+        {
+            if (IsReadOnly())
+                throw std::runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
+            newValue = round_to_nearest_awayzero(newValue);
+            SetNumericVariable(name.c_str(), newValue);
+            return *this;
+        }
+
+        virtual Variable<int>& Value(const std::string& textToParse, int base = 10)
+        {
+            if (IsReadOnly())
+                throw std::runtime_error(std::string("Illegal operation. The variable (").append(name).append(") is a read only variable"));
+            SetNumericVariable(name.c_str(), static_cast<double>(std::stoi(textToParse, nullptr, base)));
+            return *this;
+        }
+
+        virtual std::string ToString()
+        {
+            return std::to_string(Value()); 
         }
     };
 
@@ -367,13 +377,12 @@ namespace internal // implementation specific namespace not for general usage
 
     class VariableManager
     {
-        typedef std::map<std::string, std::unique_ptr<IVariable>> ivar_collection_t;
+        typedef std::unordered_map<std::string, std::shared_ptr<IVariable>> ivar_collection_t;
         ivar_collection_t variableCollection;
 
     public:
         VariableManager()
         {
-
         }
 
         ~VariableManager()
@@ -396,14 +405,7 @@ namespace internal // implementation specific namespace not for general usage
             for(auto item : AllMutable())
             {
                 RestoreVariableFromFile(item->Name().c_str(), fileName.c_str());           
-                item->Update();
             }
-        }
-
-        void UpdateAll()
-        {
-            for (auto& item : variableCollection)
-                item.second->Update();
         }
 
         std::vector<IVariable*> MatchingAll(ScopeFlags withScope) const
@@ -504,18 +506,40 @@ namespace internal // implementation specific namespace not for general usage
             variableCollection[variable->Name()].reset(variable);
         }
 
-        IVariable* GetByName(const std::string& name) const
+        bool ContainsVariable(const std::string& name)
         {
-            auto itemLocation = variableCollection.find(name);
-            if (variableCollection.end() == itemLocation)
-                return nullptr;
-            return itemLocation->second.get();
+            return variableCollection.find(name) != variableCollection.end();
         }
 
         template<typename T>
-        T* GetByName(const std::string& name) const
+        bool ContainsVariable(const std::string& name)
         {
-            return dynamic_cast<T*>(GetByName(name));
+            auto item = variableCollection.find(name);
+            return (item != variableCollection.end() && dynamic_cast<Variable<T*>>(item->second.get()) != nullptr);
+
+        }
+        
+        IVariable& GetByName(const std::string& name) const
+        {
+            auto itemLocation = variableCollection.find(name);
+            if (variableCollection.end() == itemLocation)
+                throw std::invalid_argument(std::string("No variable with the name (").append(name).append(") exists"));
+            return *(itemLocation->second.get());
+        }
+
+        template<typename T>
+        T& GetByName(const std::string& name) const
+        {
+            auto var = dynamic_cast<T*>(&GetByName(name));
+            if (nullptr == var)
+                throw std::invalid_argument(std::string("No variable with the name (").append(name).append(") exists for type ").append(typeid(T).name()));
+            return *var;
+        }
+
+        template<typename T>
+        void SetValue(const std::string& name, const T& value)
+        {
+            GetByName<Variable<T>>(name).Value(value);
         }
 
         // Return a reference to a VariableManager that includes all the standard variables available by the host application.
@@ -535,8 +559,10 @@ namespace internal // implementation specific namespace not for general usage
                             stdVars.Manage(new BoolVariable(item.szName, item.scope, item.readonly));
                             break;
                         case VariableType::Integer:
+                            stdVars.Manage(new IntegerVariable(item.szName, item.scope, item.readonly));
+                            break;
                         case VariableType::Numeric:
-                            stdVars.Manage(new NumericVariable(item.szName, item.scope, item.readonly, item.type == VariableType::Integer));
+                            stdVars.Manage(new NumericVariable(item.szName, item.scope, item.readonly));
                             break;
                         case VariableType::Text:
                             stdVars.Manage(new TextVariable(item.szName, item.scope, item.readonly));

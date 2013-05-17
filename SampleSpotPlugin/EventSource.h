@@ -105,7 +105,7 @@ public:
         eventBinding.EventSourceListLength = 1;
         eventBinding.UserData = reinterpret_cast<uintptr_t>(this);
         eventBinding.HostEventSourceList = &targetEvent;
-        isEnabled = PluginHost::ActionFunc(PluginHost::pluginHandle, SpotPluginApi::HostActionRequest::BindEventHandler, 0, &eventBinding);
+        isEnabled = PluginHost::DoAction( SpotPluginApi::HostActionRequest::BindEventHandler, 0, &eventBinding);
     }
 
     void Disable()
@@ -116,7 +116,7 @@ public:
         eventBinding.EventSourceListLength = 1;
         eventBinding.HostEventSourceList = &targetEvent;
         eventBinding.UserData = reinterpret_cast<uintptr_t>(this);
-        PluginHost::ActionFunc(PluginHost::pluginHandle, SpotPluginApi::HostActionRequest::UnbindEventHandler, 0, &eventBinding);
+        PluginHost::DoAction( SpotPluginApi::HostActionRequest::UnbindEventHandler, 0, &eventBinding);
         isEnabled = false;
     }
 
