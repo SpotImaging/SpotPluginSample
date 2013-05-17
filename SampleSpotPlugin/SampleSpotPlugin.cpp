@@ -106,10 +106,10 @@ void SetStandardEventHandlers()
 
 struct test_action_t
 {
-	void MakeSomeNoise()
-	{
-		MessageBeep(300);
-	}
+    void MakeSomeNoise()
+    {
+        MessageBeep(300);
+    }
 };
 
 /// Summary:
@@ -169,16 +169,16 @@ bool SPOTPLUGINAPI SPOTPLUGIN_INIT_FUNC(host_action_func_t hostActionFunc, uintp
     // Setup callback handler
     //
     // This callback handles all 
-	*pluginCallbackFunc = CallbackDispatcher::master_callback_func;
-	*userData = reinterpret_cast<uintptr_t>(&dispatcher);
-	dispatcher.SetAction(1, []()
-	{
-		auto measurmentFontSize = VariableManager::StandardVars().GetByName<NumericVariable>("MeasurementTextFontSize");
-		if(measurmentFontSize)
-			measurmentFontSize->Value(measurmentFontSize->Value() + 1);
-	});
+    *pluginCallbackFunc = CallbackDispatcher::master_callback_func;
+    *userData = reinterpret_cast<uintptr_t>(&dispatcher);
+    dispatcher.SetAction(1, []()
+    {
+        auto measurmentFontSize = VariableManager::StandardVars().GetByName<NumericVariable>("MeasurementTextFontSize");
+        if(measurmentFontSize)
+            measurmentFontSize->Value(measurmentFontSize->Value() + 1);
+    });
 
-	//===============================
+    //===============================
     // Setup optional event bindings
     //
     // Construct an EventSource<T> object by supplying an argument conversion function object
